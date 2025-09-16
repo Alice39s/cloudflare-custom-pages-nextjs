@@ -26,10 +26,85 @@ function getAllHtmlFiles(dirPath: string): string[] {
   return files;
 }
 
+function embedAssets($: cheerio.CheerioAPI, htmlFilePath: string): void {
+  const outDir = path.dirname(htmlFilePath);
+  let rootPath = outDir;
+
+  // Find the "out" directory to resolve relative paths
+  while (rootPath && !rootPath.endsWith("out")) {
+    rootPath = path.dirname(rootPath);
+    if (rootPath === path.dirname(rootPath)) break; // reached filesystem root
+  }
+
+  // Embed CSS files. Not necessary becuase Cloudflare does not break CSS.
+  /** 
+  $("link[rel='stylesheet']").each((_, element) => {
+    const $element = $(element);
+    const href = $element.attr("href");
+
+    if (href?.startsWith("/")) {
+      const cssPath = path.join(
+        rootPath,
+        decodeURIComponent(href.substring(1)),
+      ); // Remove leading slash
+
+      try {
+        if (fs.existsSync(cssPath)) {
+          const cssContent = fs.readFileSync(cssPath, "utf-8");
+          // Encode CSS as base64 and create a data URL
+          const base64Content = Buffer.from(cssContent).toString("base64");
+          const dataUrl = `data:text/css;base64,${base64Content}`;
+
+          // Create new link tag with inline content
+          const styleTag = `<link rel="stylesheet" href="${dataUrl}">`;
+          $element.replaceWith(styleTag);
+          console.log(`Embedded CSS: ${href}`);
+        }
+      } catch (error) {
+        console.warn(`Failed to embed CSS ${href}:`, error);
+      }
+    }
+  });
+  */
+
+  // Embed JavaScript files
+  $("script[src]").each((_, element) => {
+    const $element = $(element);
+    const src = $element.attr("src");
+
+    if (src?.startsWith("/")) {
+      const jsPath = path.join(rootPath, decodeURIComponent(src.substring(1))); // Remove leading slash
+
+      try {
+        if (fs.existsSync(jsPath)) {
+          const jsContent = fs.readFileSync(jsPath, "utf-8");
+          // Encode JavaScript as base64 and create a data URL
+          const base64Content = Buffer.from(jsContent).toString("base64");
+          const dataUrl = `data:application/javascript;base64,${base64Content}`;
+
+          // Create new script tag with inline content
+          const attributes: string[] = [];
+          if ($element.attr("defer")) attributes.push('defer=""');
+          if ($element.attr("nomodule")) attributes.push('nomodule=""');
+
+          const scriptTag = `<script ${attributes.join(" ")} src="${dataUrl}"></script>`;
+          $element.replaceWith(scriptTag);
+          console.log(`Embedded JS: ${src}`);
+        }
+      } catch (error) {
+        console.warn(`Failed to embed JS ${src}:`, error);
+      }
+    }
+  });
+}
+
 function processHtmlFile(filePath: string): void {
   try {
     const html = fs.readFileSync(filePath, "utf-8");
     const $ = cheerio.load(html);
+
+    // Embed JS assets
+    embedAssets($, filePath);
 
     $('link[rel="preload"]').each((_, element) => {
       const $element = $(element);
