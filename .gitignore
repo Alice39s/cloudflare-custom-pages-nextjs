@@ -54,6 +54,5 @@ jspm_packages
 out/
 old/
 
-bun.lock
 *.md
 !README*
